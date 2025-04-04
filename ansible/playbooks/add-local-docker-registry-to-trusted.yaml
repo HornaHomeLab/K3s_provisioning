@@ -1,0 +1,100 @@
+---
+- name: Configure k3s with certificate from Vault using AppRole
+  hosts: k3s_cluster
+  become: true
+  vars:
+    registry_url: "docker-hub.horna.local"
+    vault_url: "http://vault.horna.local"
+    vault_path: "v1/certificates/data/local-docker-registry"
+    cert_path: "/etc/rancher/k3s/registry.crt"
+
+    vault_role_id: "{{ vault_approle_role_id }}"
+    vault_secret_id: "{{ vault_approle_secret_id }}"
+    vault_approle_mount_point: "approle"
+
+  tasks:
+    # - name: Install hvac via python module
+    #   ansible.builtin.pip:
+    #     name: hvac
+    #     state: present
+    #   delegate_to: localhost
+    #   run_once: true
+
+    - name: Authenticate to Vault using AppRole
+      uri:
+        url: "{{ vault_url }}/v1/auth/{{ vault_approle_mount_point }}/login"
+        method: POST
+        body_format: json
+        body:
+          role_id: "{{ vault_role_id }}"
+          secret_id: "{{ vault_secret_id }}"
+        return_content: yes
+        status_code: 200
+      register: vault_login
+      no_log: false # Don't log sensitive credentials
+
+    - name: Set Vault token from AppRole login
+      set_fact:
+        vault_token: "{{ vault_login.json.auth.client_token }}"
+      run_once: true
+
+    - name: Get certificate from Vault
+      uri:
+        url: "{{ vault_url }}/{{ vault_path }}"
+        method: GET
+        headers:
+          X-Vault-Token: "{{ vault_token }}"
+        return_content: yes
+        status_code: 200
+        body_format: json
+      register: vault_response
+      no_log: true
+
+    # - name: Debug - Show full Vault response
+    #   debug:
+    #     var: vault_response.json
+    #   when: vault_response.json is defined
+    #   no_log: false  # Temporarily enable logging for debugging
+
+    - name: Verify certificate was retrieved
+      assert:
+        that:
+          - "'data' in vault_response.json"
+          - "'crt' in vault_response.json.data.data"
+        msg: "Certificate not found in Vault response"
+
+    - name: Create certificate directory
+      file:
+        path: "/etc/rancher/k3s"
+        state: directory
+        mode: "0755"
+
+    - name: Save certificate to node
+      copy:
+        content: "{{ vault_response.json.data.data.crt }}"
+        dest: "{{ cert_path }}"
+        mode: "0644"
+
+    - name: Configure k3s registries.yaml
+      blockinfile:
+        path: /etc/rancher/k3s/registries.yaml
+        block: |
+          mirrors:
+            "{{ registry_url }}":
+              endpoint:
+                - "https://{{ registry_url }}"
+          configs:
+            "{{ registry_url }}":
+              tls:
+                ca_file: "{{ cert_path }}"
+        create: yes
+      register: registry_config
+
+    - name: Reboot the server
+      ansible.builtin.reboot:
+        msg: "Reboot initiated by Ansible"
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+      when: registry_config.changed
