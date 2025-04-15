@@ -1,0 +1,46 @@
+---
+- name: Deploy ingress-nginx manifest for k3s
+  hosts: server
+  become: true
+
+  tasks:
+    - name: Create ingress-nginx manifest file
+      ansible.builtin.copy:
+        dest: /var/lib/rancher/k3s/server/manifests/ingress-nginx.yaml
+        content: |
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: ingress-nginx
+          ---
+          apiVersion: helm.cattle.io/v1
+          kind: HelmChart
+          metadata:
+            name: ingress-nginx
+            namespace: kube-system
+          spec:
+            chart: ingress-nginx
+            repo: https://kubernetes.github.io/ingress-nginx
+            targetNamespace: ingress-nginx
+            version: v4.11.2
+            set:
+            valuesContent: |-
+              fullnameOverride: ingress-nginx
+              controller:
+                kind: DaemonSet
+                hostNetwork: true
+                hostPort:
+                  enabled: true
+                service:
+                  enabled: false
+                publishService:
+                  enabled: false
+                metrics:
+                  enabled: true
+                  serviceMonitor:
+                    enabled: false
+                config:
+                  use-forwarded-headers: "true"
+        owner: root
+        group: root
+        mode: '0644'

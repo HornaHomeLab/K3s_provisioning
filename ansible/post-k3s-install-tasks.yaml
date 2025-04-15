@@ -1,0 +1,12 @@
+- name: K3s Orchestration Playbook
+  become: true
+  gather_facts: true
+  hosts: all
+
+- name: Install Nginx Ingress Controller
+  become: true
+  import_playbook: ./playbooks/install-nginx-ingress-controller.yaml
+
+- name: Install TLS certificate for local registry
+  become: true
+  import_playbook: ./playbooks/add-local-docker-registry-to-trusted.yaml

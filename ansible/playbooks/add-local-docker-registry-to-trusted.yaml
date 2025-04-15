@@ -13,12 +13,6 @@
     vault_approle_mount_point: "approle"
 
   tasks:
-    # - name: Install hvac via python module
-    #   ansible.builtin.pip:
-    #     name: hvac
-    #     state: present
-    #   delegate_to: localhost
-    #   run_once: true
 
     - name: Authenticate to Vault using AppRole
       uri:
@@ -49,12 +43,6 @@
         body_format: json
       register: vault_response
       no_log: true
-
-    # - name: Debug - Show full Vault response
-    #   debug:
-    #     var: vault_response.json
-    #   when: vault_response.json is defined
-    #   no_log: false  # Temporarily enable logging for debugging
 
     - name: Verify certificate was retrieved
       assert:

@@ -27,14 +27,14 @@ ansible-playbook k3s.orchestration.site -i ./inventory.yml --private-key ./id_rs
 ```
 
 5. Run Ansible playbook to add local docker registry as trusted
+
 ```shell
-ansible-playbook -i ./inventory.yml --private-key ./id_rsa \
-    ./playbooks/add-local-docker-registry-to-trusted.yaml \
+ansible-playbook ./post-k3s-install-tasks.yaml -i ./inventory.yml --private-key ./id_rsa \
     --extra-vars "vault_approle_role_id=your-role-id vault_approle_secret_id=your-secret-id"
 ```
 
+6. Remove `id_rsa` file
 
-5. Remove `id_rsa` file
 ```shell
 rm -f ./id_rsa
 ```
